@@ -1,6 +1,6 @@
 # provider
 provider "aws" {
-  region = "us-east-1"
+  region = "us-east-2"
   profile = "pie"
 }
 
@@ -67,8 +67,10 @@ resource "aws_s3_bucket" "production" {
 }
 
 resource "aws_s3_bucket_object" "production_wonderschool_necc_attendances" {
-  bucket = "pie-production"
-  key    = "wonderschool/necc/attendances/"
+  count  = length(var.wonderschool_necc_attendance_folders)
+  bucket = aws_s3_bucket.production.bucket
+  acl    = "private"
+  key    = "${var.wonderschool_necc_attendance_folders[count.index]}/"
   source = "/dev/null"
 }
 
