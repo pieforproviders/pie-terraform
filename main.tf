@@ -1,7 +1,7 @@
 # provider
 provider "aws" {
   region = "us-east-2"
-  profile = "pie"
+  profile = "pie-team"
 }
 
 # IAM configuration
@@ -66,6 +66,46 @@ resource "aws_s3_bucket" "production" {
   }
 }
 
+resource "aws_s3_bucket" "staging" {
+  bucket = "pie-staging"
+  acl = "private"
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        kms_master_key_id = aws_kms_key.encryption_key.arn
+        sse_algorithm     = "aws:kms"
+      }
+    }
+  }
+}
+resource "aws_s3_bucket" "demo" {
+  bucket = "pie-app-demo"
+  acl = "private"
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        kms_master_key_id = aws_kms_key.encryption_key.arn
+        sse_algorithm     = "aws:kms"
+      }
+    }
+  }
+}
+resource "aws_s3_bucket" "local" {
+  bucket = "pie-local-dev"
+  acl = "private"
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        kms_master_key_id = aws_kms_key.encryption_key.arn
+        sse_algorithm     = "aws:kms"
+      }
+    }
+  }
+}
+
 resource "aws_s3_bucket_object" "production_wonderschool_necc_attendances" {
   count  = length(var.wonderschool_necc_attendance_folders)
   bucket = aws_s3_bucket.production.bucket
@@ -74,8 +114,25 @@ resource "aws_s3_bucket_object" "production_wonderschool_necc_attendances" {
   source = "/dev/null"
 }
 
-resource "aws_s3_bucket_object" "production_wonderschool_necc_attendances_archive" {
-  bucket = "pie-production"
-  key    = "wonderschool/necc/attendances/archive/"
+resource "aws_s3_bucket_object" "staging_wonderschool_necc_attendances" {
+  count  = length(var.wonderschool_necc_attendance_folders)
+  bucket = aws_s3_bucket.staging.bucket
+  acl    = "private"
+  key    = "${var.wonderschool_necc_attendance_folders[count.index]}/"
+  source = "/dev/null"
+}
+
+resource "aws_s3_bucket_object" "demo_wonderschool_necc_attendances" {
+  count  = length(var.wonderschool_necc_attendance_folders)
+  bucket = aws_s3_bucket.demo.bucket
+  acl    = "private"
+  key    = "${var.wonderschool_necc_attendance_folders[count.index]}/"
+  source = "/dev/null"
+}
+resource "aws_s3_bucket_object" "local_wonderschool_necc_attendances" {
+  count  = length(var.wonderschool_necc_attendance_folders)
+  bucket = aws_s3_bucket.local.bucket
+  acl    = "private"
+  key    = "${var.wonderschool_necc_attendance_folders[count.index]}/"
   source = "/dev/null"
 }

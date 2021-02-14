@@ -20,5 +20,5 @@ variable "chelsea_account_id" {
 variable "wonderschool_necc_attendance_folders" {
   type        = list(string)
   description = "The list of S3 folders to create for Wonderschool Necc Attendances"
-  default     = ["wonderschool", "necc", "attendances", "archive"]
+  default     = ["wonderschool", "wonderschool/necc", "wonderschool/necc/attendances", "wonderschool/necc/attendances/archive"]
 }
