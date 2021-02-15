@@ -1,50 +1,81 @@
-# provider
+# Provider
 provider "aws" {
   region = "us-east-2"
-  profile = "pie-team"
+  profile = "terraform"
 }
 
-# IAM configuration
+# Organization
 
-data "aws_iam_policy_document" "assume_role" {
+resource "aws_organizations_organization" "pie" {
+  # (resource arguments)
+}
+
+
+
+# IAM
+
+resource "aws_iam_user" "users" {
+  count = length(concat(var.s3_console_users, var.s3_programmatic_users))
+  name = element(concat(var.s3_console_users, var.s3_programmatic_users), count.index)
+}
+
+# S3 Programmatic
+
+data "aws_iam_policy_document" "s3_programmatic_policy_document" {
+  statement {
+    actions = ["s3:*"]
+    resources = ["*"]
+  }
+}
+resource "aws_iam_policy" "s3_programmatic_policy" {
+  name = "s3_programmatic"
+  policy = data.aws_iam_policy_document.s3_programmatic_policy_document.json
+}
+
+resource "aws_iam_user_policy_attachment" "s3_programmatic_attach" {
+  count = length(var.s3_programmatic_users)
+  user = element(var.s3_programmatic_users, count.index)
+  policy_arn = aws_iam_policy.s3_programmatic_policy.arn
+}
+
+# S3 Console Access
+
+data "aws_iam_policy_document" "s3_console_policy_document" {
   statement {
     actions = [
-      "sts:AssumeRole",
+      "s3:GetBucketLocation",
+      "s3:ListAllMyBuckets",
+      "s3:ListBucket",
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:DeleteObject"
     ]
-
-    principals {
-      type        = "AWS"
-      identifiers = [
-        "arn:aws:iam::${var.master_account_id}:root",
-        "arn:aws:iam::${var.kate_account_id}:root",
-        "arn:aws:iam::${var.chelsea_account_id}:root"
-      ]
-    }
-
-    effect = "Allow"
+    resources = ["*"]
   }
 }
 
-resource "aws_iam_role" "admin" {
-  name               = "admin"
-  assume_role_policy = data.aws_iam_policy_document.assume_role.json
-  description        = "The role to grant permissions to this account to delegated IAM users in the master account"
+
+resource "aws_iam_policy" "s3_console_policy" {
+  name = "s3_console"
+  policy = data.aws_iam_policy_document.s3_console_policy_document.json
 }
 
-resource "aws_iam_role_policy_attachment" "admin_policy_attachment" {
-  role       = aws_iam_role.admin.name
-  policy_arn = var.policy_arn
+resource "aws_iam_user_policy_attachment" "s3_console_attach" {
+  count = length(var.s3_console_users)
+  user = element(var.s3_console_users, count.index)
+  policy_arn = aws_iam_policy.s3_console_policy.arn
 }
 
-# S3 resources
+# S3 Buckets
 
 resource "aws_kms_key" "encryption_key" {
   description             = "This key is used to encrypt bucket objects"
   deletion_window_in_days = 10
 }
 
-resource "aws_s3_bucket" "production" {
-  bucket = "pie-production"
+resource "aws_s3_bucket" "buckets" {
+  count = length(var.s3_buckets)
+  bucket = element(var.s3_buckets, count.index)
   acl = "private"
 
   server_side_encryption_configuration {
@@ -57,75 +88,12 @@ resource "aws_s3_bucket" "production" {
   }
 }
 
-resource "aws_s3_bucket" "staging" {
-  bucket = "pie-staging"
-  acl = "private"
+# S3 Folders
 
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        kms_master_key_id = aws_kms_key.encryption_key.arn
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
-}
-resource "aws_s3_bucket" "demo" {
-  bucket = "pie-app-demo"
-  acl = "private"
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        kms_master_key_id = aws_kms_key.encryption_key.arn
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
-}
-resource "aws_s3_bucket" "local" {
-  bucket = "pie-local-dev"
-  acl = "private"
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        kms_master_key_id = aws_kms_key.encryption_key.arn
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
-}
-
-# S3 Folder configuration
-
-resource "aws_s3_bucket_object" "production_wonderschool_necc_attendances" {
-  count  = length(var.wonderschool_necc_attendance_folders)
-  bucket = aws_s3_bucket.production.bucket
+resource "aws_s3_bucket_object" "wonderschool_necc_attendances" {
+  count  = length(local.environment_bucket_list[0])
+  bucket = element(local.environment_bucket_list, count.index)[0]
   acl    = "private"
-  key    = "${var.wonderschool_necc_attendance_folders[count.index]}/"
-  source = "/dev/null"
-}
-
-resource "aws_s3_bucket_object" "staging_wonderschool_necc_attendances" {
-  count  = length(var.wonderschool_necc_attendance_folders)
-  bucket = aws_s3_bucket.staging.bucket
-  acl    = "private"
-  key    = "${var.wonderschool_necc_attendance_folders[count.index]}/"
-  source = "/dev/null"
-}
-
-resource "aws_s3_bucket_object" "demo_wonderschool_necc_attendances" {
-  count  = length(var.wonderschool_necc_attendance_folders)
-  bucket = aws_s3_bucket.demo.bucket
-  acl    = "private"
-  key    = "${var.wonderschool_necc_attendance_folders[count.index]}/"
-  source = "/dev/null"
-}
-resource "aws_s3_bucket_object" "local_wonderschool_necc_attendances" {
-  count  = length(var.wonderschool_necc_attendance_folders)
-  bucket = aws_s3_bucket.local.bucket
-  acl    = "private"
-  key    = "${var.wonderschool_necc_attendance_folders[count.index]}/"
+  key    = element(local.environment_bucket_list, count.index)[1]
   source = "/dev/null"
 }
