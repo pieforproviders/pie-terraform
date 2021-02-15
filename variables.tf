@@ -5,6 +5,12 @@ variable "master_account_id" {
   # sensitive   = true
 }
 
+variable "policy_arn" {
+  type        = string
+  default     = "arn:aws:iam::aws:policy/AdministratorAccess"
+  description = "Policy ARN to attach to the role"
+}
+
 variable "kate_account_id" {
   type        = string
   description = "The ID of Kate's account to grant permissions to access the current role"

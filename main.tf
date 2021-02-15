@@ -5,6 +5,7 @@ provider "aws" {
 }
 
 # IAM configuration
+
 data "aws_iam_policy_document" "assume_role" {
   statement {
     actions = [
@@ -13,22 +14,11 @@ data "aws_iam_policy_document" "assume_role" {
 
     principals {
       type        = "AWS"
-      identifiers = ["arn:aws:iam::${var.master_account_id}:root"]
-    }
-
-    effect = "Allow"
-  }
-}
-
-data "aws_iam_policy_document" "trust_policy" {
-  statement {
-    actions = [
-      "sts:AssumeRole",
-    ]
-
-    principals {
-      type        = "AWS"
-      identifiers = ["arn:aws:iam::${var.kate_account_id}:root", "arn:aws:iam::${var.chelsea_account_id}:root"]
+      identifiers = [
+        "arn:aws:iam::${var.master_account_id}:root",
+        "arn:aws:iam::${var.kate_account_id}:root",
+        "arn:aws:iam::${var.chelsea_account_id}:root"
+      ]
     }
 
     effect = "Allow"
@@ -41,12 +31,13 @@ resource "aws_iam_role" "admin" {
   description        = "The role to grant permissions to this account to delegated IAM users in the master account"
 }
 
-resource "aws_iam_role_policy_attachment" "trust-attach" {
+resource "aws_iam_role_policy_attachment" "admin_policy_attachment" {
   role       = aws_iam_role.admin.name
-  policy_arn = data.aws_iam_policy_document.trust_policy.json
+  policy_arn = var.policy_arn
 }
 
 # S3 resources
+
 resource "aws_kms_key" "encryption_key" {
   description             = "This key is used to encrypt bucket objects"
   deletion_window_in_days = 10
@@ -105,6 +96,8 @@ resource "aws_s3_bucket" "local" {
     }
   }
 }
+
+# S3 Folder configuration
 
 resource "aws_s3_bucket_object" "production_wonderschool_necc_attendances" {
   count  = length(var.wonderschool_necc_attendance_folders)
