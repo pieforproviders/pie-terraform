@@ -10,33 +10,46 @@ resource "aws_organizations_organization" "pie" {
   # (resource arguments)
 }
 
-
-
 # IAM
 
 resource "aws_iam_user" "users" {
-  count = length(concat(var.s3_console_users, var.s3_programmatic_users))
-  name = element(concat(var.s3_console_users, var.s3_programmatic_users), count.index)
+  count = length(var.users)
+  name = element(var.users, count.index)
 }
 
-# S3 Programmatic
+resource "aws_iam_user_login_profile" "users" {
+  count = length(var.users)
+  user = element(var.users, count.index)
+  pgp_key = "keybase:kate_at_pie"
+}
 
-data "aws_iam_policy_document" "s3_programmatic_policy_document" {
+# Production
+
+data "aws_iam_policy_document" "production_role_policy_document" {
   statement {
-    actions = ["s3:*"]
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "AWS"
+      identifiers = [""]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "production_s3_buckets_policy_document" {
+  statement {
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:ListAllMyBuckets",
+      "s3:ListBucket",
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:DeleteObject"
+    ]
     resources = ["*"]
   }
 }
-resource "aws_iam_policy" "s3_programmatic_policy" {
-  name = "s3_programmatic"
-  policy = data.aws_iam_policy_document.s3_programmatic_policy_document.json
-}
 
-resource "aws_iam_user_policy_attachment" "s3_programmatic_attach" {
-  count = length(var.s3_programmatic_users)
-  user = element(var.s3_programmatic_users, count.index)
-  policy_arn = aws_iam_policy.s3_programmatic_policy.arn
-}
 
 # S3 Console Access
 
@@ -53,7 +66,6 @@ data "aws_iam_policy_document" "s3_console_policy_document" {
     resources = ["*"]
   }
 }
-
 
 resource "aws_iam_policy" "s3_console_policy" {
   name = "s3_console"

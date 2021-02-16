@@ -1,27 +1,11 @@
-variable "s3_programmatic_users" {
+variable "users" {
   type = list(string)
-  description = "Users who will access S3 programmatically"
-  default = ["team"]
+  description = "The list of IAM users for this organization"
+  default = ["kate", "chelsea", "prod-app", "staging-app", "demo-app", "local-app"]
 }
 
-variable "s3_console_users" {
+variable "app_environments" {
   type = list(string)
-  description = "Users who will access S3 via Console"
-  default = ["kate","chelsea"]
-}
-
-variable "s3_buckets" {
-  type = list(string)
-  description = "The list of S3 buckets to create for each environment"
-  default = ["pie-app-prod", "pie-app-demo", "pie-app-staging", "pie-app-local"]
-}
-
-variable "wonderschool_necc_attendance_folders" {
-  type        = list(string)
-  description = "The list of S3 folders to create for Wonderschool Necc Attendances"
-  default     = ["wonderschool", "wonderschool/necc", "wonderschool/necc/attendances", "wonderschool/necc/attendances/archive"]
-}
-
-locals {
-  environment_bucket_list = setproduct(var.s3_buckets, var.wonderschool_necc_attendance_folders)
+  description = "The list of environments the application has"
+  default = ["prod", "demo", "staging", "local"]
 }
