@@ -1,11 +1,17 @@
-variable "users" {
+variable "humans" {
   type = list(string)
-  description = "The list of IAM users for this organization"
-  default = ["kate", "chelsea", "prod-app", "staging-app", "demo-app", "local-app"]
+  description = "The list of human IAM users for this organization"
+  default = ["kate", "chelsea"]
+}
+
+variable "applications" {
+  type = list(string)
+  description = "The list of application IAM users for this organization"
+  default = ["production_app", "staging_app", "demo_app", "local_app"]
 }
 
 variable "app_environments" {
   type = list(string)
-  description = "The list of environments the application has"
+  description = "The list of available environments"
   default = ["prod", "demo", "staging", "local"]
 }
