@@ -9,9 +9,3 @@ variable "applications" {
   description = "The list of application IAM users for this organization"
   default = ["production_app", "staging_app", "demo_app", "local_app"]
 }
-
-variable "app_environments" {
-  type = list(string)
-  description = "The list of available environments"
-  default = ["prod", "demo", "staging", "local"]
-}
