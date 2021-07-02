@@ -1,20 +1,23 @@
-output "password" {
+output "human_passwords" {
   value = [
-    for human in var.humans:
-    "aws_iam_user_login_profile.${human}.encrypted_password"
+    for login in aws_iam_user_login_profile.humans :
+    { password = login.encrypted_password
+    user = login.user }
   ]
 }
 
 output "human_secrets" {
   value = [
-    for human in var.humans:
-    "aws_iam_access_key.${human}.encrypted_secret"
+    for access_key in aws_iam_access_key.humans :
+    { secret = access_key.encrypted_secret
+    user = access_key.user }
   ]
 }
 
 output "application_secrets" {
   value = [
-    for application in var.applications:
-    "aws_iam_access_key.${application}.encrypted_secret"
+    for access_key in aws_iam_access_key.applications :
+    { secret = access_key.encrypted_secret
+    user = access_key.user }
   ]
 }

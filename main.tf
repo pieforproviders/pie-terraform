@@ -13,16 +13,16 @@ provider "aws" {
 }
 
 ################
-# Organization
+# Local Variables
 ################
 
-resource "aws_organizations_organization" "pie" {
-  # (organization arguments)
-}
-
-resource "aws_organizations_account" "tech_team" {
-  name  = "tech_team"
-  email = "team+tech@pieforproviders.com"
+locals {
+  environments = {
+    production = {}
+    staging    = {}
+    demo       = {}
+    local      = {}
+  }
 }
 
 ################
@@ -38,294 +38,150 @@ resource "aws_iam_account_password_policy" "strict" {
   allow_users_to_change_password = true
 }
 
-resource "aws_iam_user" "terraform" {
-  name = "terraform"
-}
-resource "aws_iam_access_key" "terraform" {
-  user = aws_iam_user.terraform.name
-}
-
 resource "aws_iam_user" "applications" {
-  count = length(var.applications)
-  name  = element(var.applications, count.index)
+  for_each = local.environments
+  name     = each.key
 }
 resource "aws_iam_access_key" "applications" {
-  count = length(var.applications)
-  user  = aws_iam_user.applications[count.index].name
+  for_each = local.environments
+  user     = aws_iam_user.applications[each.key].name
+  pgp_key  = "keybase:pieforproviders"
 }
 
 resource "aws_iam_user" "humans" {
-  count = length(var.humans)
-  name  = element(var.humans, count.index)
+  for_each = toset(var.humans)
+  name     = each.key
 }
 resource "aws_iam_access_key" "humans" {
-  count = length(var.humans)
-  user  = aws_iam_user.humans[count.index].name
+  for_each = toset(var.humans)
+  user     = aws_iam_user.humans[each.key].name
+  pgp_key  = "keybase:pieforproviders"
 }
-resource "aws_iam_user_login_profile" "example" {
-  count   = length(var.humans)
-  user    = aws_iam_user.humans[count.index].name
-  pgp_key = "keybase:pieforproviders"
+resource "aws_iam_user_login_profile" "humans" {
+  for_each                = toset(var.humans)
+  user                    = aws_iam_user.humans[each.key].name
+  pgp_key                 = "keybase:pieforproviders"
+  password_reset_required = true
 }
 
 ################
 # Groups
 ################
 
-resource "aws_iam_group_membership" "production_user_group_membership" {
-  name  = "production_user_group_membership"
-  users = concat(var.humans, ["production_app"])
-  group = aws_iam_group.production_users.name
+resource "aws_iam_group_membership" "user_group_membership" {
+  for_each = local.environments
+  name     = "${each.key}_user_group_membership"
+  users    = concat(var.humans, [each.key])
+  group    = aws_iam_group.users[each.key].name
 }
 
-resource "aws_iam_group" "production_users" {
-  name = "production_users"
+resource "aws_iam_group" "users" {
+  for_each = local.environments
+  name     = each.key
 }
 
-resource "aws_iam_group_membership" "staging_user_group_membership" {
-  name  = "staging_user_group_membership"
-  users = concat(var.humans, ["staging_app"])
-  group = aws_iam_group.staging_users.name
-}
-
-resource "aws_iam_group" "staging_users" {
-  name = "staging_users"
-}
-
-resource "aws_iam_group_membership" "demo_user_group_membership" {
-  name  = "demo_user_group_membership"
-  users = concat(var.humans, ["demo_app"])
-  group = aws_iam_group.demo_users.name
-}
-
-resource "aws_iam_group" "demo_users" {
-  name = "demo_users"
-}
-
-resource "aws_iam_group_membership" "local_user_group_membership" {
-  name  = "local_user_group_membership"
-  users = concat(var.humans, ["local_app"])
-  group = aws_iam_group.local_users.name
-}
-
-resource "aws_iam_group" "local_users" {
-  name = "local_users"
-}
-
-################
-# Policies - Production Buckets
-################
-
-data "aws_iam_policy_document" "production_buckets_policy_document" {
+data "aws_iam_policy_document" "buckets_policy_document" {
+  for_each = local.environments
   statement {
-    actions   = [
-      "s3:GetBucketLocation",
-      "s3:ListAllMyBuckets",
-      "s3:ListBucket",
-      "s3:PutObject",
-      "s3:GetObject",
-      "s3:DeleteObject"
+    actions = [
+      "s3:*"
     ]
-    resources = [aws_s3_bucket.production_log.arn, aws_s3_bucket.production.arn]
+    resources = [aws_s3_bucket.log_bucket.arn, aws_s3_bucket.environment_buckets[each.key].arn,aws_s3_bucket.archive_buckets[each.key].arn]
+    effect    = "Allow"
+  }
+  statement {
+    actions = [
+      "s3:ListAllMyBuckets",
+      "s3:GetAccountPublicAccessBlock",
+      "s3:GetBucketPublicAccessBlock",
+      "s3:GetBucketPolicyStatus",
+      "s3:GetBucketAcl",
+      "s3:ListAccessPoints"
+    ]
+    resources = ["arn:aws:s3:::*"]
     effect    = "Allow"
   }
 }
 
-resource "aws_iam_group_policy" "production_buckets_policy" {
-  name   = "production_buckets_policy"
-  group  = aws_iam_group.production_users.name
-  policy = data.aws_iam_policy_document.production_buckets_policy_document.json
+resource "aws_iam_group_policy" "buckets_policy" {
+  for_each = local.environments
+  name     = "${each.key}_bucket_policy"
+  group    = aws_iam_group.users[each.key].name
+  policy   = data.aws_iam_policy_document.buckets_policy_document[each.key].json
 }
 
-################
-# Policies - Staging Buckets
-################
 
-data "aws_iam_policy_document" "staging_buckets_policy_document" {
-  statement {
-    actions   = [
-      "s3:GetBucketLocation",
-      "s3:ListAllMyBuckets",
-      "s3:ListBucket",
-      "s3:PutObject",
-      "s3:GetObject",
-      "s3:DeleteObject"
-    ]
-    resources = [aws_s3_bucket.staging_log.arn, aws_s3_bucket.staging.arn]
-    effect    = "Allow"
-  }
-}
-
-resource "aws_iam_group_policy" "staging_buckets_policy" {
-  name   = "staging_buckets_policy"
-  group  = aws_iam_group.staging_users.name
-  policy = data.aws_iam_policy_document.staging_buckets_policy_document.json
-}
-
-################
-# Policies - Demo Buckets
-################
-
-data "aws_iam_policy_document" "demo_buckets_policy_document" {
-  statement {
-    actions   = [
-      "s3:GetBucketLocation",
-      "s3:ListAllMyBuckets",
-      "s3:ListBucket",
-      "s3:PutObject",
-      "s3:GetObject",
-      "s3:DeleteObject"
-    ]
-    resources = [aws_s3_bucket.demo_log.arn, aws_s3_bucket.demo.arn]
-    effect    = "Allow"
-  }
-}
-
-resource "aws_iam_group_policy" "demo_buckets_policy" {
-  name   = "demo_buckets_policy"
-  group  = aws_iam_group.demo_users.name
-  policy = data.aws_iam_policy_document.demo_buckets_policy_document.json
-}
-
-################
-# Policies - Local Buckets
-################
-
-data "aws_iam_policy_document" "local_buckets_policy_document" {
-  statement {
-    actions   = [
-      "s3:GetBucketLocation",
-      "s3:ListAllMyBuckets",
-      "s3:ListBucket",
-      "s3:PutObject",
-      "s3:GetObject",
-      "s3:DeleteObject"
-    ]
-    resources = [aws_s3_bucket.local_log.arn, aws_s3_bucket.local.arn]
-    effect    = "Allow"
-  }
-}
-
-resource "aws_iam_group_policy" "local_buckets_policy" {
-  name   = "local_buckets_policy"
-  group  = aws_iam_group.local_users.name
-  policy = data.aws_iam_policy_document.local_buckets_policy_document.json
-}
-
-################
-# Buckets
-################
-
-resource "aws_s3_bucket" "production_log" {
-  bucket = "production_log"
+resource "aws_s3_bucket" "log_bucket" {
+  bucket = "p4p-logs"
   acl    = "log-delivery-write"
 }
 
-resource "aws_kms_key" "production" {
-  description             = "Key to encrypt production bucket"
+resource "aws_kms_key" "kms_keys" {
+  for_each                = local.environments
+  description             = "Key to encrypt ${each.key} bucket"
   deletion_window_in_days = 10
 }
 
-resource "aws_s3_bucket" "production" {
-  bucket = "production"
-  acl    = "private"
+resource "aws_s3_bucket" "environment_buckets" {
+  for_each = local.environments
+  bucket   = "${each.key}-p4p"
+  acl      = "private"
 
   logging {
-    target_bucket = aws_s3_bucket.production_log.id
-    target_prefix = "log/"
+    target_bucket = aws_s3_bucket.log_bucket.id
+    target_prefix = "${each.key}/"
   }
   server_side_encryption_configuration {
     rule {
       apply_server_side_encryption_by_default {
-        kms_master_key_id = aws_kms_key.production.arn
+        kms_master_key_id = aws_kms_key.kms_keys[each.key].arn
         sse_algorithm     = "aws:kms"
       }
     }
   }
 }
 
-resource "aws_s3_bucket" "staging_log" {
-  bucket = "staging_log"
-  acl    = "log-delivery-write"
-}
-
-resource "aws_kms_key" "staging" {
-  description             = "Key to encrypt staging bucket"
-  deletion_window_in_days = 10
-}
-
-resource "aws_s3_bucket" "staging" {
-  bucket = "staging"
-  acl    = "private"
+resource "aws_s3_bucket" "archive_buckets" {
+  for_each = local.environments
+  bucket   = "${each.key}-p4p-archive"
+  acl      = "private"
 
   logging {
-    target_bucket = aws_s3_bucket.staging_log.id
-    target_prefix = "log/"
+    target_bucket = aws_s3_bucket.log_bucket.id
+    target_prefix = "${each.key}-archive/"
   }
   server_side_encryption_configuration {
     rule {
       apply_server_side_encryption_by_default {
-        kms_master_key_id = aws_kms_key.staging.arn
+        kms_master_key_id = aws_kms_key.kms_keys[each.key].arn
         sse_algorithm     = "aws:kms"
       }
     }
   }
 }
 
-resource "aws_s3_bucket" "demo_log" {
-  bucket = "demo_log"
-  acl    = "log-delivery-write"
+resource "aws_s3_bucket_public_access_block" "archive_block" {
+  for_each                = local.environments
+  bucket                  = aws_s3_bucket.archive_buckets[each.key].id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
-resource "aws_kms_key" "demo" {
-  description             = "Key to encrypt demo bucket"
-  deletion_window_in_days = 10
+resource "aws_s3_bucket_public_access_block" "environment_block" {
+  for_each                = local.environments
+  bucket                  = aws_s3_bucket.environment_buckets[each.key].id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
-resource "aws_s3_bucket" "demo" {
-  bucket = "demo"
-  acl    = "private"
-
-  logging {
-    target_bucket = aws_s3_bucket.demo_log.id
-    target_prefix = "log/"
-  }
-  
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        kms_master_key_id = aws_kms_key.demo.arn
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
-}
-
-resource "aws_s3_bucket" "local_log" {
-  bucket = "local_log"
-  acl    = "log-delivery-write"
-}
-
-resource "aws_kms_key" "local" {
-  description             = "Key to encrypt local bucket"
-  deletion_window_in_days = 10
-}
-
-resource "aws_s3_bucket" "local" {
-  bucket = "local"
-  acl    = "private"
-
-  logging {
-    target_bucket = aws_s3_bucket.local_log.id
-    target_prefix = "log/"
-  }
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        kms_master_key_id = aws_kms_key.local.arn
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
+resource "aws_s3_bucket_public_access_block" "log_block" {
+  bucket                  = aws_s3_bucket.log_bucket.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
