@@ -1,4 +1,10 @@
 terraform {
+  backend "s3" {
+    bucket = "p4p-terraform-state"
+    region = "us-east-2"
+    profile = "terraform"
+    key = "state"
+  }
   required_providers {
     aws = {
       source  = "hashicorp/aws"
